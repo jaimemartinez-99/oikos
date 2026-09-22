@@ -44,7 +44,7 @@ export async function syncDelta(before, after) {
   }
   const oldFurniture=byId(before.furniture), nextFurniture=byId(after.furniture), roomId=Object.fromEntries(after.roomRows.map(x=>[x.name,x.id]))
   for(const x of before.furniture) if(!nextFurniture.has(x.id)) await fail(await supabase.from('furniture_items').delete().eq('id',x.id))
-  for(const x of after.furniture) if(!oldFurniture.has(x.id)) await fail(await supabase.from('furniture_items').insert({id:x.id,household_id:householdId,room_id:roomId[x.room],title:x.title,url:x.url||null,priority:x.priority,description:x.notes||null,created_by:after.currentUser}))
+  for(const x of after.furniture) if(!oldFurniture.has(x.id)) await fail(await supabase.from('furniture_items').insert({id:x.id,household_id:householdId,room_id:roomId[x.room],title:x.title,url:x.url||null,priority:x.priority,image_url:x.imageUrl||null,description:x.notes||null,created_by:after.currentUser}))
   const oldTasks=byId(before.tasks), nextTasks=byId(after.tasks)
   for(const x of before.tasks) if(!nextTasks.has(x.id)) await fail(await supabase.from('tasks').delete().eq('id',x.id))
   for(const x of after.tasks) if(!oldTasks.has(x.id)) await fail(await supabase.from('tasks').insert({id:x.id,household_id:householdId,title:x.title,description:x.description||null}))
