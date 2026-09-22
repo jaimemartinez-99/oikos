@@ -1,0 +1,12 @@
+PASOS MANUALES PARA PRODUCCIÓN
+
+IMPORTANTE: si ya ejecutaste una versión anterior del esquema y aparece un error de recursión RLS, ejecuta antes el bloque de ARREGLO_RLS_URGENTE.txt.
+
+1. Crea un proyecto en Supabase y copia su URL y clave anon en un archivo .env local usando .env.example como plantilla.
+2. En SQL Editor ejecuta completo supabase/schema.sql. Crea primero un usuario propietario desde Authentication > Users (o con el login de la app cuando esté conectado) y después inserta su hogar y household_members; la primera membresía owner se crea manualmente porque el RLS evita el registro abierto por diseño.
+   Para hacerlo con seguridad y con los catálogos iniciales, usa CREAR_HOGAR_INICIAL.txt.
+3. Para invitar al segundo miembro, crea el usuario en Authentication y añade una fila household_members con el mismo household_id y role member. No habilites el registro público.
+4. Despliega la Edge Function. Instala la CLI si no la tienes (`npm install -g supabase`), inicia sesión (`supabase login`), vincula el proyecto (`supabase link --project-ref TU_PROJECT_REF`) y ejecuta `supabase functions deploy extract-metadata`. Si se modifica la función —por ejemplo, esta corrección CORS— ejecuta el mismo comando otra vez para redesplegarla. En Dashboard > Edge Functions debe aparecer `extract-metadata` como ACTIVE. En Muebles, pulsa «Extraer datos del enlace»: la interfaz muestra si la función responde o el error recibido. La función valida protocolos y bloquea hosts locales; para endurecimiento adicional configura una allowlist de dominios comerciales si el proyecto lo requiere.
+5. En Authentication configura la URL de producción y las Redirect URLs de Vercel/Netlify. Activa email/password o magic link según preferencia.
+6. La aplicación ya usa Supabase para autenticación y datos cuando existen VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. Comprueba en local que puedes iniciar sesión y crear, actualizar y borrar un elemento en cada sección; si aparece un error de RLS, consulta ARREGLO_RLS_URGENTE.txt.
+7. Antes de desplegar, ejecuta npm run build y configura las variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en el proveedor de hosting.
