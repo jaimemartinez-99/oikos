@@ -1,0 +1,23 @@
+ACTUALIZAR SUPABASE PARA «PEQUEÑAS TAREAS»
+
+Antes de desplegar esta versión, abre Supabase > SQL Editor y ejecuta UNA VEZ:
+
+create table if not exists public.household_notes (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  content text not null check(length(trim(content)) > 0),
+  checked boolean not null default false,
+  created_by uuid references auth.users(id),
+  created_at timestamptz not null default now()
+);
+
+alter table public.household_notes enable row level security;
+
+drop policy if exists "note household access" on public.household_notes;
+create policy "note household access"
+on public.household_notes
+for all
+using (public.is_household_member(household_id))
+with check (public.is_household_member(household_id));
+
+Después redespliega Vercel o haz push al repositorio. Esta tabla es necesaria para sincronizar las notas entre los miembros del hogar.
