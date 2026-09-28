@@ -69,17 +69,19 @@ async function mercadona(query: string): Promise<Product[]> {
 }
 
 async function bm(query: string): Promise<Product[]> {
-  const response = await fetch(`https://shop-bm.aktios.net/V1.0/catalog/searcher/products?q=${encodeURIComponent(query)}&limit=8`, {
-    headers: { 'accept': 'application/json', 'locale': 'es', 'channel': 'web' }, signal: AbortSignal.timeout(10000),
+  const response = await fetch(`https://www.online.bmsupermercados.es/api/rest/V1.0/catalog/searcher/products?q=${encodeURIComponent(query)}&limit=8`, {
+    headers: { 'accept': 'application/json' }, signal: AbortSignal.timeout(10000),
   })
   if (!response.ok) throw new Error(`BM respondió con HTTP ${response.status}`)
   const data = await response.json()
-  const entries = data.catalog?.products || data.products
+  const entries = data.catalog?.products
   if (!Array.isArray(entries)) throw new Error('Formato de catálogo BM desconocido')
-  return entries.map((entry: Record<string, any>) => product(entry.name || entry.description,
-    entry.price?.final || entry.price?.value || entry.price,
-    entry.url || `https://www.online.bmsupermercados.es/es/p/${entry.slug || 'producto'}/${entry.id || entry.code}`,
-    entry.unitPrice, entry.unit)).filter((entry: Product | null): entry is Product => !!entry)
+  return entries.map((entry: Record<string, any>) => {
+    const price = entry.priceData?.prices?.find((value: Record<string, unknown>) => value.id === 'PRICE')?.value
+    const name = [entry.productData?.brand?.name, entry.productData?.name].filter(Boolean).join(' ')
+    return product(name, price?.centAmount, entry.productData?.url,
+      price?.centUnitAmount, entry.priceData?.unitPriceUnitType)
+  }).filter((entry: Product | null): entry is Product => !!entry)
 }
 
 serve(async request => {
