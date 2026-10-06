@@ -5,12 +5,16 @@ import {BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis,
 const recurringTypes = new Set(['supermercado', 'agua', 'gas', 'luz', 'alquiler']);
 const colors = ['#315d54', '#d7a866', '#df7d62', '#7770a8', '#91b9ad', '#be5b77', '#4e86a8'];
 const today = () => new Date().toISOString().slice(0, 10);
+const monthStart = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+};
 const formatDate = value => value ? new Date(value + 'T12:00').toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric'}).replaceAll('/', '-') : '';
 const money = amount => Number(amount).toLocaleString('es-ES', {style: 'currency', currency: 'EUR'});
 
 export default function Expenses({data, save}) {
   const [form, setForm] = useState({type: data.types[0] || '', detail: '', amount: '', date: today()});
-  const [filters, setFilters] = useState({type: '', detail: '', min: '', max: '', from: '', to: ''});
+  const [filters, setFilters] = useState(() => ({type: '', detail: '', min: '', max: '', from: monthStart(), to: ''}));
   const [showAll, setShowAll] = useState(false);
   const [chartMode, setChartMode] = useState('pie');
   const [sort, setSort] = useState({key: 'date', dir: 'desc'});
