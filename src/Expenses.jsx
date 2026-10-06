@@ -46,6 +46,10 @@ export default function Expenses({data, save}) {
     const result = typeof one === 'number' ? one - two : String(one).localeCompare(String(two), 'es');
     return result * (sort.dir === 'asc' ? 1 : -1);
   });
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const monthTotal = filtered.filter(x => x.date.startsWith(currentMonth)).reduce((sum, x) => sum + Number(x.amount), 0);
+  const total = filtered.reduce((sum, x) => sum + Number(x.amount), 0);
   const visibleTypes = [...new Set(filtered.map(x => x.type))].sort();
   const lineTypes = selectedLineTypes === null ? visibleTypes : visibleTypes.filter(type => selectedLineTypes.includes(type));
   const toggleLineType = type => setSelectedLineTypes(current => {
@@ -74,7 +78,10 @@ export default function Expenses({data, save}) {
       <div className="table-head expense-table-head">
         <div><h2>{showAll ? 'Todos los movimientos' : 'Gastos recurrentes'}</h2><small className="field-hint">{showAll ? 'Todos los tipos de gasto' : 'Supermercado, Agua, Gas, Luz y Alquiler'}</small></div>
         <div className="expense-table-actions">
-          <strong>{money(filtered.reduce((sum, x) => sum + Number(x.amount), 0))}</strong>
+          <div className="expense-totals">
+            <strong>{money(monthTotal)} este mes</strong>
+            <small>{money(total)} en total</small>
+          </div>
           <label className="expense-switch"><input type="checkbox" role="switch" checked={showAll} onChange={event => setShowAll(event.target.checked)}/><span className="expense-switch-track" aria-hidden="true"/><span>Todos los gastos</span></label>
         </div>
       </div>
