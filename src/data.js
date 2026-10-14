@@ -1,4 +1,5 @@
 import { supabase, supabaseReady } from './supabase'
+import { syncShoppingTickets } from './shopping'
 
 export const roomNames = ['Salón','Cocina','Habitación','Baño principal','Baño invitados','Despacho','Terrazas']
 export const typeNames = ['Supermercado','Luz','Agua','Internet','Ocio']
@@ -35,13 +36,8 @@ export async function ensureCatalogues(householdId) {
 const byId = a => new Map(a.map(x=>[x.id,x]))
 export async function syncDelta(before, after) {
   if (!supabaseReady || !after.householdId) return
-  const householdId = after.householdId, oldTickets=byId(before.tickets), nextTickets=byId(after.tickets)
-  for (const t of before.tickets) if (!nextTickets.has(t.id)) await fail(await supabase.from('shopping_tickets').delete().eq('id',t.id))
-  for (const t of after.tickets) {
-    const old=oldTickets.get(t.id)
-    if(!old) { await fail(await supabase.from('shopping_tickets').insert({id:t.id,household_id:householdId,date:t.date,created_by:after.currentUser})); if(t.items.length) await fail(await supabase.from('shopping_items').insert(t.items.map(i=>({id:i.id,ticket_id:t.id,product_name:i.name,quantity:i.quantity,checked:i.checked})))) }
-    else { const oi=byId(old.items), ni=byId(t.items); for(const i of old.items) if(!ni.has(i.id)) await fail(await supabase.from('shopping_items').delete().eq('id',i.id)); for(const i of t.items){const prev=oi.get(i.id);if(!prev) await fail(await supabase.from('shopping_items').insert({id:i.id,ticket_id:t.id,product_name:i.name,quantity:i.quantity,checked:i.checked}));else if(prev.checked!==i.checked||prev.quantity!==i.quantity||prev.name!==i.name) await fail(await supabase.from('shopping_items').update({product_name:i.name,quantity:i.quantity,checked:i.checked}).eq('id',i.id))} }
-  }
+  const householdId = after.householdId
+  await syncShoppingTickets(supabase, before, after)
   const oldFurniture=byId(before.furniture), nextFurniture=byId(after.furniture), roomId=Object.fromEntries(after.roomRows.map(x=>[x.name,x.id]))
   for(const x of before.furniture) if(!nextFurniture.has(x.id)) await fail(await supabase.from('furniture_items').delete().eq('id',x.id))
   for(const x of after.furniture) if(!oldFurniture.has(x.id)) await fail(await supabase.from('furniture_items').insert({id:x.id,household_id:householdId,room_id:roomId[x.room],title:x.title,url:x.url||null,priority:x.priority,image_url:x.imageUrl||null,description:x.notes||null,created_by:after.currentUser}))
