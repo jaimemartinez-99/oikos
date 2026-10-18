@@ -1,5 +1,6 @@
 import { supabase, supabaseReady } from './supabase'
 import { syncShoppingTickets } from './shopping'
+import { syncMeals } from './meals.js'
 
 export const roomNames = ['Salón','Cocina','Habitación','Baño principal','Baño invitados','Despacho','Terrazas']
 export const typeNames = ['Supermercado','Luz','Agua','Internet','Ocio']
@@ -11,7 +12,7 @@ export async function loadHousehold() {
   const member = await supabase.from('household_members').select('household_id, display_name, role').eq('user_id', user.id).limit(1).maybeSingle(); fail(member)
   if (!member.data) throw new Error('NO_HOUSEHOLD')
   const householdId = member.data.household_id
-  const [members, tickets, items, rooms, furniture, tasks, assignments, types, expenses, notes] = await Promise.all([
+  const [members, tickets, items, rooms, furniture, tasks, assignments, types, expenses, meals, notes] = await Promise.all([
     supabase.from('household_members').select('user_id,display_name').eq('household_id', householdId),
     supabase.from('shopping_tickets').select('id,date').eq('household_id', householdId).order('date',{ascending:false}),
     supabase.from('shopping_items').select('id,ticket_id,product_name,quantity,checked,created_at'),
@@ -21,13 +22,14 @@ export async function loadHousehold() {
     supabase.from('task_assignments').select('id,task_id,assigned_to,date,is_recurring,recurrence_rule,completed'),
     supabase.from('expense_types').select('id,name').eq('household_id', householdId),
     supabase.from('expenses').select('id,type,detail,amount,date,created_by').eq('household_id', householdId).order('date',{ascending:false}),
+    supabase.from('meal_plans').select('date,slot,text').eq('household_id', householdId),
     supabase.from('household_notes').select('id,content,checked,created_at').eq('household_id', householdId).order('created_at',{ascending:false}),
   ])
-  ;[members,tickets,items,rooms,furniture,tasks,assignments,types,expenses].forEach(fail)
+  ;[members,tickets,items,rooms,furniture,tasks,assignments,types,expenses,meals].forEach(fail)
   const memberName = Object.fromEntries(members.data.map(x=>[x.user_id,x.display_name]))
   const taskTitle = Object.fromEntries(tasks.data.map(x=>[x.id,x.title]))
   const roomName = Object.fromEntries(rooms.data.map(x=>[x.id,x.name]))
-  return { householdId, currentUser:user.id, members:members.data, roomRows:rooms.data, tickets:tickets.data.map(t=>({id:t.id,date:t.date,items:items.data.filter(i=>i.ticket_id===t.id).map(i=>({id:i.id,name:i.product_name,quantity:i.quantity,checked:i.checked}))})), rooms:rooms.data.map(x=>x.name), furniture:furniture.data.map(x=>({id:x.id,room:roomName[x.room_id]||'Sin estancia',title:x.title,url:x.url||'',priority:x.priority,notes:x.description||'',imageUrl:x.image_url||''})), tasks:tasks.data, assignments:assignments.data.map(x=>({id:x.id,taskId:x.task_id,title:taskTitle[x.task_id]||'Tarea',person:memberName[x.assigned_to]||'Sin asignar',date:x.date,isRecurring:x.is_recurring,recurrenceRule:x.recurrence_rule,completed:x.completed})), notes:notes.error?[]:notes.data.map(x=>({id:x.id,content:x.content,checked:x.checked,createdAt:x.created_at})), expenses:expenses.data.map(x=>({id:x.id,type:x.type,detail:x.detail,amount:Number(x.amount),date:x.date,person:memberName[x.created_by]||''})), types:types.data.map(x=>x.name) }
+  return { meals:meals.data, householdId, currentUser:user.id, members:members.data, roomRows:rooms.data, tickets:tickets.data.map(t=>({id:t.id,date:t.date,items:items.data.filter(i=>i.ticket_id===t.id).map(i=>({id:i.id,name:i.product_name,quantity:i.quantity,checked:i.checked}))})), rooms:rooms.data.map(x=>x.name), furniture:furniture.data.map(x=>({id:x.id,room:roomName[x.room_id]||'Sin estancia',title:x.title,url:x.url||'',priority:x.priority,notes:x.description||'',imageUrl:x.image_url||''})), tasks:tasks.data, assignments:assignments.data.map(x=>({id:x.id,taskId:x.task_id,title:taskTitle[x.task_id]||'Tarea',person:memberName[x.assigned_to]||'Sin asignar',date:x.date,isRecurring:x.is_recurring,recurrenceRule:x.recurrence_rule,completed:x.completed})), notes:notes.error?[]:notes.data.map(x=>({id:x.id,content:x.content,checked:x.checked,createdAt:x.created_at})), expenses:expenses.data.map(x=>({id:x.id,type:x.type,detail:x.detail,amount:Number(x.amount),date:x.date,person:memberName[x.created_by]||''})), types:types.data.map(x=>x.name) }
 }
 export async function ensureCatalogues(householdId) {
   const results = await Promise.all([supabase.from('furniture_rooms').upsert(roomNames.map(name=>({household_id:householdId,name})),{onConflict:'household_id,name'}),supabase.from('expense_types').upsert(typeNames.map(name=>({household_id:householdId,name})),{onConflict:'household_id,name'})])
@@ -38,6 +40,7 @@ export async function syncDelta(before, after) {
   if (!supabaseReady || !after.householdId) return
   const householdId = after.householdId
   await syncShoppingTickets(supabase, before, after)
+  await syncMeals(supabase, householdId, before.meals || [], after.meals || [])
   const oldFurniture=byId(before.furniture), nextFurniture=byId(after.furniture), roomId=Object.fromEntries(after.roomRows.map(x=>[x.name,x.id]))
   for(const x of before.furniture) if(!nextFurniture.has(x.id)) await fail(await supabase.from('furniture_items').delete().eq('id',x.id))
   for(const x of after.furniture) if(!oldFurniture.has(x.id)) await fail(await supabase.from('furniture_items').insert({id:x.id,household_id:householdId,room_id:roomId[x.room],title:x.title,url:x.url||null,priority:x.priority,image_url:x.imageUrl||null,description:x.notes||null,created_by:after.currentUser}))
