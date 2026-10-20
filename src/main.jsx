@@ -5,10 +5,11 @@ import {BrowserRouter, Navigate, NavLink, Route, Routes, useNavigate} from 'reac
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors} from '@dnd-kit/core';
 import {BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line, Legend} from 'recharts';
-import {CalendarDays, ReceiptText, Sofa, ListChecks, StickyNote, Plus, Copy, Trash2, Check, LogOut, Search, GripVertical} from 'lucide-react';
+import {CalendarDays, ReceiptText, Sofa, ListChecks, StickyNote, Plus, Copy, Trash2, Check, LogOut, GripVertical} from 'lucide-react';
 import './styles.css';
 import {supabase, supabaseReady} from './supabase';
 import PriceComparison from './PriceComparison';
+import ShoppingItem from './ShoppingItem';
 import Expenses from './Expenses';
 import Meals from './Meals.jsx';
 import {ensureCatalogues, loadHousehold, roomNames, syncDelta, typeNames} from './data';
@@ -71,21 +72,29 @@ function Shopping({data,save}) {
     save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticketId?{...t,items:[...t.items,{id:uid(),name:v,quantity:'1',checked:false}]}:t)}));
     setDrafts(x=>({...x,[ticketId]:''}));
   };
+  const removeTicket=ticket=> {
+    if(!window.confirm(`¿Borrar el ticket del ${formatDate(ticket.date)} y todos sus productos? Esta acción no se puede deshacer.`))return;
+    save(d=>({...d,tickets:d.tickets.filter(t=>t.id!==ticket.id)}));
+    setDrafts(current=>{const next={...current};delete next[ticket.id];return next});
+  };
   return <section>
     <PageTitle title="Lista de la compra" text="Organiza tus compras por ticket." action={<div className="shopping-actions">
       <div className="inline"><input type="date" aria-label="Fecha del nuevo ticket" value={newDate} onChange={e=>setNewDate(e.target.value)}/><button onClick={create}><Plus/>Nuevo ticket</button></div>
       <button className="secondary" disabled={!hasPending} onClick={collect} title={hasPending?'Trasladar todos los productos sin marcar a un nuevo ticket con la fecha de hoy':'No hay productos pendientes'}><ListChecks size={20}/>Reunir pendientes</button>
     </div>}/>
     <div className="tickets">{data.tickets.map(ticket=><article className="ticket" key={ticket.id}>
-      <div className="ticket-head"><div><small>TICKET</small><h2>{new Date(ticket.date+'T12:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</h2></div><button className="icon" title="Duplicar ticket" onClick={()=>save(d=>({...d,tickets:[{id:uid(),date:today(),items:ticket.items.map(i=>({...i,id:uid(),checked:false}))},...d.tickets]}))}><Copy size={18}/></button></div>
-      <ul>{[...ticket.items].sort((a,b)=>Number(a.checked)-Number(b.checked)||a.name.localeCompare(b.name,'es',{sensitivity:'base'})).map(item=><li key={item.id}>
-        <button className={'check '+(item.checked?'done':'')} onClick={()=>save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticket.id?{...t,items:t.items.map(i=>i.id===item.id?{...i,checked:!i.checked}:i)}:t)}))}>{item.checked&&<Check size={14}/>}</button>
-        <span className={item.checked?'strike':''}>{item.name}</span><small>{item.quantity}</small>
-        <button className="icon" title={`Comparar precios de ${item.name}`} aria-label={`Comparar precios de ${item.name}`} onClick={()=>setComparedItem(item)}><Search size={16}/></button>
-        <button className="icon danger" title={`Borrar ${item.name}`} onClick={()=>save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticket.id?{...t,items:t.items.filter(i=>i.id!==item.id)}:t)}))}><Trash2 size={15}/></button>
-      </li>)}</ul>
+      <div className="ticket-head"><div><small>TICKET</small><h2>{new Date(ticket.date+'T12:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</h2></div><div className="ticket-actions">
+        <button className="icon" title="Duplicar ticket" aria-label={`Duplicar ticket del ${formatDate(ticket.date)}`} onClick={()=>save(d=>({...d,tickets:[{id:uid(),date:today(),items:ticket.items.map(i=>({...i,id:uid(),checked:false}))},...d.tickets]}))}><Copy size={18}/></button>
+        <button className="icon danger" title="Borrar ticket" aria-label={`Borrar ticket del ${formatDate(ticket.date)}`} onClick={()=>removeTicket(ticket)}><Trash2 size={18}/></button>
+      </div></div>
+      <ul>{[...ticket.items].sort((a,b)=>Number(a.checked)-Number(b.checked)||a.name.localeCompare(b.name,'es',{sensitivity:'base'})).map(item=><ShoppingItem key={item.id} item={item}
+        onUpdate={changes=>save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticket.id?{...t,items:t.items.map(i=>i.id===item.id?{...i,...changes}:i)}:t)}))}
+        onCompare={()=>setComparedItem(item)}
+        onDelete={()=>save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticket.id?{...t,items:t.items.filter(i=>i.id!==item.id)}:t)}))}
+      />)}</ul>
       <div className="add-row"><input list="products" placeholder="Añadir producto" value={drafts[ticket.id]||''} onChange={e=>setDrafts(x=>({...x,[ticket.id]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&add(ticket.id)}/><button className="icon" onClick={()=>add(ticket.id)}><Plus size={20}/></button></div>
     </article>)}</div>
+    {!data.tickets.length&&<p className="empty">No hay tickets. Crea uno para empezar tu lista de la compra.</p>}
     <datalist id="products">{suggestions.map(x=><option key={x} value={x}/>)}</datalist>
     {comparedItem&&<PriceComparison item={comparedItem} onClose={()=>setComparedItem(null)}/>}
   </section>;

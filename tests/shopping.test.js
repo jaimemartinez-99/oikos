@@ -39,7 +39,10 @@ function database(data, failOperation = () => false) {
             }
           } else {
             for (const id of query.ids) {
-              if (query.operation === 'delete') tables[table].delete(id);
+              if (query.operation === 'delete') {
+                if (table === 'shopping_tickets') assert.ok(![...tables.shopping_items.values()].some(item => item.ticket_id === id), 'Remove products before their ticket');
+                tables[table].delete(id);
+              }
               else {
                 assert.ok(tables[table].has(id));
                 if (query.payload.ticket_id) assert.ok(tables.shopping_tickets.has(query.payload.ticket_id), 'Destination exists');
@@ -127,4 +130,24 @@ test('a failed move throws without deleting or duplicating products', async () =
   assert.equal(db.tables.shopping_items.size, 3);
   assert.equal(db.tables.shopping_items.get('milk1').ticket_id, 'old1');
   assert.ok(!db.calls.some(call => call.operation === 'delete'));
+});
+
+test('deleting a populated ticket removes its products and preserves the other tickets', async () => {
+  const before = fixture();
+  const after = {...before, tickets: before.tickets.filter(ticket => ticket.id !== 'old1')};
+  const db = database(before);
+  await syncShoppingTickets(db, before, after);
+  assert.deepEqual([...db.tables.shopping_tickets.keys()], ['old2', 'empty']);
+  assert.deepEqual([...db.tables.shopping_items.values()], [{id: 'milk2', ticket_id: 'old2', product_name: 'Leche', quantity: '1 l', checked: false}]);
+  assert.deepEqual(db.calls.map(call => [call.table, call.operation]), [['shopping_items', 'delete'], ['shopping_tickets', 'delete']]);
+});
+
+test('a failed product deletion keeps its ticket and reports the error', async () => {
+  const before = fixture();
+  const after = {...before, tickets: before.tickets.filter(ticket => ticket.id !== 'old1')};
+  const db = database(before, query => query.table === 'shopping_items' && query.operation === 'delete');
+  await assert.rejects(syncShoppingTickets(db, before, after), /Save failed/);
+  assert.equal(db.tables.shopping_tickets.size, 3);
+  assert.equal(db.tables.shopping_items.size, 3);
+  assert.ok(!db.calls.some(call => call.table === 'shopping_tickets'));
 });
