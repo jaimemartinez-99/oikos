@@ -5,7 +5,7 @@ import {BrowserRouter, Navigate, NavLink, Route, Routes, useNavigate} from 'reac
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors} from '@dnd-kit/core';
 import {BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line, Legend} from 'recharts';
-import {CalendarDays, ReceiptText, Sofa, ListChecks, StickyNote, Plus, Copy, Trash2, Check, LogOut, GripVertical} from 'lucide-react';
+import {CalendarDays, ReceiptText, Sofa, ListChecks, Plus, Copy, Trash2, Check, LogOut, GripVertical} from 'lucide-react';
 import './styles.css';
 import {supabase, supabaseReady} from './supabase';
 import PriceComparison from './PriceComparison';
@@ -52,7 +52,7 @@ function useData() {
   };
   return {data,save,loading,error};
 }
-const Nav=()=> <nav className="nav">{[['compra',ReceiptText,'Compra'],['muebles',Sofa,'Muebles'],['tareas',ListChecks,'Tareas'],['comidas',CalendarDays,'Comidas'],['notas',StickyNote,'Pequeñas'],['gastos',CalendarDays,'Gastos']].map(([to,I,label])=><NavLink key={to} to={'/app/'+to}><I size={20}/><span>{label}</span></NavLink>)}</nav>;
+const Nav=()=> <nav className="nav">{[['compra',ReceiptText,'Compra'],['muebles',Sofa,'Muebles'],['tareas',ListChecks,'Tareas'],['comidas',CalendarDays,'Comidas'],['notas',Check,'Pequeñas tareas'],['gastos',CalendarDays,'Gastos']].map(([to,I,label])=><NavLink key={to} to={'/app/'+to}><I size={20}/><span>{label}</span></NavLink>)}</nav>;
 function Layout(){const {data,save,loading,error}=useData();const nav=useNavigate();if(loading)return <div className="loading">Cargando tu hogar…</div>;if(supabaseReady&&error.startsWith('Inicia sesión'))return <Navigate to="/login" replace/>;return <div className="shell"><header><div><small>MI HOGAR</small><h1>Oikos</h1></div><button className="ghost" title="Cerrar sesión" onClick={async()=>{if(supabaseReady)await supabase.auth.signOut();nav('/login')}}><LogOut size={19}/></button></header>{error&&<p className="notice">{error}</p>}<main><Routes><Route path="compra" element={<Shopping data={data} save={save}/>}/><Route path="muebles" element={<Furniture data={data} save={save}/>}/><Route path="tareas" element={<Tasks data={data} save={save}/>}/><Route path="comidas" element={<Meals data={data} save={save}/>}/><Route path="notas" element={<Notes data={data} save={save}/>}/><Route path="gastos" element={<Expenses data={data} save={save}/>}/><Route path="*" element={<Navigate to="compra" replace/>}/></Routes></main><Nav/></div>}
 function Shopping({data,save}) {
   const [newDate,setNewDate]=useState(today());
