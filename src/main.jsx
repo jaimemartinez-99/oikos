@@ -5,15 +5,14 @@ import {BrowserRouter, Navigate, NavLink, Route, Routes, useNavigate} from 'reac
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors} from '@dnd-kit/core';
 import {BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line, Legend} from 'recharts';
-import {CalendarDays, ReceiptText, Sofa, ListChecks, Plus, Copy, Trash2, Check, LogOut, GripVertical} from 'lucide-react';
+import {CalendarDays, ReceiptText, Sofa, ListChecks, Plus, Trash2, Check, LogOut, GripVertical} from 'lucide-react';
 import './styles.css';
 import {supabase, supabaseReady} from './supabase';
-import PriceComparison from './PriceComparison';
-import ShoppingItem from './ShoppingItem';
+import Shopping from './Shopping.jsx';
 import Expenses from './Expenses';
 import Meals from './Meals.jsx';
 import {ensureCatalogues, loadHousehold, roomNames, syncDelta, typeNames} from './data';
-import {collectPendingItems, localToday} from './shopping';
+import {localToday} from './shopping';
 
 const today = localToday;
 const uid = () => crypto.randomUUID();
@@ -54,51 +53,6 @@ function useData() {
 }
 const Nav=()=> <nav className="nav">{[['compra',ReceiptText,'Compra'],['muebles',Sofa,'Muebles'],['tareas',ListChecks,'Tareas'],['comidas',CalendarDays,'Comidas'],['notas',Check,'Pequeñas tareas'],['gastos',CalendarDays,'Gastos']].map(([to,I,label])=><NavLink key={to} to={'/app/'+to}><I size={20}/><span>{label}</span></NavLink>)}</nav>;
 function Layout(){const {data,save,loading,error}=useData();const nav=useNavigate();if(loading)return <div className="loading">Cargando tu hogar…</div>;if(supabaseReady&&error.startsWith('Inicia sesión'))return <Navigate to="/login" replace/>;return <div className="shell"><header><div><small>MI HOGAR</small><h1>Oikos</h1></div><button className="ghost" title="Cerrar sesión" onClick={async()=>{if(supabaseReady)await supabase.auth.signOut();nav('/login')}}><LogOut size={19}/></button></header>{error&&<p className="notice">{error}</p>}<main><Routes><Route path="compra" element={<Shopping data={data} save={save}/>}/><Route path="muebles" element={<Furniture data={data} save={save}/>}/><Route path="tareas" element={<Tasks data={data} save={save}/>}/><Route path="comidas" element={<Meals data={data} save={save}/>}/><Route path="notas" element={<Notes data={data} save={save}/>}/><Route path="gastos" element={<Expenses data={data} save={save}/>}/><Route path="*" element={<Navigate to="compra" replace/>}/></Routes></main><Nav/></div>}
-function Shopping({data,save}) {
-  const [newDate,setNewDate]=useState(today());
-  const [drafts,setDrafts]=useState({});
-  const [comparedItem,setComparedItem]=useState(null);
-  const suggestions=[...new Set(data.tickets.flatMap(t=>t.items.map(i=>i.name)))];
-  const hasPending=data.tickets.some(t=>t.items.some(i=>!i.checked));
-  const create=()=>save(d=>({...d,tickets:[{id:uid(),date:newDate,items:[]},...d.tickets]}));
-  const collect=()=> {
-    const ticketId=uid();
-    const date=today();
-    save(d=>collectPendingItems(d,ticketId,date));
-  };
-  const add=ticketId=> {
-    const v=(drafts[ticketId]||'').trim();
-    if(!v)return;
-    save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticketId?{...t,items:[...t.items,{id:uid(),name:v,quantity:'1',checked:false}]}:t)}));
-    setDrafts(x=>({...x,[ticketId]:''}));
-  };
-  const removeTicket=ticket=> {
-    if(!window.confirm(`¿Borrar el ticket del ${formatDate(ticket.date)} y todos sus productos? Esta acción no se puede deshacer.`))return;
-    save(d=>({...d,tickets:d.tickets.filter(t=>t.id!==ticket.id)}));
-    setDrafts(current=>{const next={...current};delete next[ticket.id];return next});
-  };
-  return <section>
-    <PageTitle title="Lista de la compra" text="Organiza tus compras por ticket." action={<div className="shopping-actions">
-      <div className="inline"><input type="date" aria-label="Fecha del nuevo ticket" value={newDate} onChange={e=>setNewDate(e.target.value)}/><button onClick={create}><Plus/>Nuevo ticket</button></div>
-      <button className="secondary" disabled={!hasPending} onClick={collect} title={hasPending?'Trasladar todos los productos sin marcar a un nuevo ticket con la fecha de hoy':'No hay productos pendientes'}><ListChecks size={20}/>Reunir pendientes</button>
-    </div>}/>
-    <div className="tickets">{data.tickets.map(ticket=><article className="ticket" key={ticket.id}>
-      <div className="ticket-head"><div><small>TICKET</small><h2>{new Date(ticket.date+'T12:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</h2></div><div className="ticket-actions">
-        <button className="icon" title="Duplicar ticket" aria-label={`Duplicar ticket del ${formatDate(ticket.date)}`} onClick={()=>save(d=>({...d,tickets:[{id:uid(),date:today(),items:ticket.items.map(i=>({...i,id:uid(),checked:false}))},...d.tickets]}))}><Copy size={18}/></button>
-        <button className="icon danger" title="Borrar ticket" aria-label={`Borrar ticket del ${formatDate(ticket.date)}`} onClick={()=>removeTicket(ticket)}><Trash2 size={18}/></button>
-      </div></div>
-      <ul>{[...ticket.items].sort((a,b)=>Number(a.checked)-Number(b.checked)||a.name.localeCompare(b.name,'es',{sensitivity:'base'})).map(item=><ShoppingItem key={item.id} item={item}
-        onUpdate={changes=>save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticket.id?{...t,items:t.items.map(i=>i.id===item.id?{...i,...changes}:i)}:t)}))}
-        onCompare={()=>setComparedItem(item)}
-        onDelete={()=>save(d=>({...d,tickets:d.tickets.map(t=>t.id===ticket.id?{...t,items:t.items.filter(i=>i.id!==item.id)}:t)}))}
-      />)}</ul>
-      <div className="add-row"><input list="products" placeholder="Añadir producto" value={drafts[ticket.id]||''} onChange={e=>setDrafts(x=>({...x,[ticket.id]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&add(ticket.id)}/><button className="icon" onClick={()=>add(ticket.id)}><Plus size={20}/></button></div>
-    </article>)}</div>
-    {!data.tickets.length&&<p className="empty">No hay tickets. Crea uno para empezar tu lista de la compra.</p>}
-    <datalist id="products">{suggestions.map(x=><option key={x} value={x}/>)}</datalist>
-    {comparedItem&&<PriceComparison item={comparedItem} onClose={()=>setComparedItem(null)}/>}
-  </section>;
-}
 function FurnitureCard({item,expanded,onToggle,onDelete}){const [imageFailed,setImageFailed]=useState(false);return <article className={'furniture card '+(expanded?'expanded':'')}><button className="furniture-toggle" onClick={onToggle} aria-expanded={expanded}><div className="image-placeholder">{item.imageUrl&&!imageFailed?<img src={item.imageUrl} alt="" onError={()=>setImageFailed(true)}/>:item.url?<span>Sin imagen</span>:<span>Sin imagen</span>}</div><div className="furniture-summary"><h3>{item.title}</h3><div className="stars">{'★'.repeat(item.priority)}{'☆'.repeat(5-item.priority)}</div><small>{expanded?'Ocultar detalles':'Ver detalles'}</small></div><span className="expand-arrow">{expanded?'⌃':'⌄'}</span></button>{expanded&&<div className="furniture-details">{item.notes&&<p>{item.notes}</p>}{item.url&&<a href={item.url} target="_blank" rel="noreferrer">Abrir producto ↗</a>}<button className="icon danger" title="Eliminar mueble" onClick={onDelete}><Trash2 size={16}/></button></div>}</article>}
 function Furniture({data,save}){const [form,setForm]=useState({room:data.rooms[0],title:'',url:'',priority:3,notes:'',imageUrl:''});const [selectedRoom,setSelectedRoom]=useState(data.rooms[0]);const [expanded,setExpanded]=useState(null);const [loading,setLoading]=useState(false);const [metadataStatus,setMetadataStatus]=useState('');const extract=async()=>{if(!form.url){setMetadataStatus('Introduce primero una URL válida.');return}if(!supabaseReady){setMetadataStatus('Faltan las variables de Supabase en .env.');return}setLoading(true);setMetadataStatus('Llamando a extract-metadata…');try{const {data:meta,error}=await supabase.functions.invoke('extract-metadata',{body:{url:form.url}});if(error)throw error;if(meta?.error)throw new Error(meta.error);setForm(x=>({...x,title:meta?.title||x.title,notes:meta?.description||x.notes,imageUrl:meta?.image_url||x.imageUrl}));setMetadataStatus(meta?.image_url?'Metadatos recibidos: título, nota e imagen actualizados.':meta?.title?'Metadatos recibidos: título y nota actualizados; el sitio no ofreció imagen.':'La función respondió, pero el sitio no ofreció metadatos.')}catch(error){setMetadataStatus(`La función no se pudo ejecutar: ${error.message}`)}finally{setLoading(false)}}; const submit=e=>{e.preventDefault();if(!form.title.trim())return;save(d=>({...d,furniture:[{...form,id:uid(),createdAt:today()},...d.furniture]}));setSelectedRoom(form.room);setForm({...form,title:'',url:'',notes:'',imageUrl:''});setMetadataStatus('')};const items=data.furniture.filter(x=>x.room===selectedRoom).sort((a,b)=>b.priority-a.priority);return <section><PageTitle title="Compra de muebles" text="Guarda cada idea en su estancia y ordénala por prioridad."/><div className="split"><form className="card form" onSubmit={submit}><h2>Añadir mueble</h2><label>URL del producto<input type="url" placeholder="https://…" value={form.url} onChange={e=>setForm({...form,url:e.target.value})}/></label><button type="button" className="secondary" disabled={loading} onClick={extract}>{loading?'Extrayendo…':'Extraer datos del enlace'}</button><small className={metadataStatus.startsWith('La función no')?'metadata error':'metadata'}>{metadataStatus||'La extracción se realiza en la Edge Function de Supabase.'}</small><label>Título<input required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label><label>Estancia<select value={form.room} onChange={e=>setForm({...form,room:e.target.value})}>{data.rooms.map(x=><option key={x}>{x}</option>)}</select></label><label>Prioridad <select value={form.priority} onChange={e=>setForm({...form,priority:+e.target.value})}>{[1,2,3,4,5].map(n=><option key={n} value={n}>{'★'.repeat(n)}{'☆'.repeat(5-n)}</option>)}</select></label><label>Notas<textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></label><button><Plus/>Guardar mueble</button></form><div className="room-list"><div className="room-heading"><div><h2>{selectedRoom}</h2><small>Selecciona una estancia para verla.</small></div><select value={selectedRoom} onChange={e=>{setSelectedRoom(e.target.value);setExpanded(null)}}>{data.rooms.map(x=><option key={x}>{x}</option>)}</select></div><div className="furniture-grid">{items.map(x=><FurnitureCard item={x} expanded={expanded===x.id} onToggle={()=>setExpanded(id=>id===x.id?null:x.id)} onDelete={()=>save(d=>({...d,furniture:d.furniture.filter(i=>i.id!==x.id)}))} key={x.id}/>)}{!items.length&&<p className="empty">Todavía no hay muebles en esta estancia.</p>}</div></div></div></section>}
 function DraggableTask({task,onLongPress}){const {attributes,listeners,setNodeRef,transform}=useDraggable({id:task.id});const timer=useRef();const down=e=>{timer.current=setTimeout(()=>onLongPress(task),650);listeners?.onPointerDown?.(e)};const end=()=>clearTimeout(timer.current);return <div ref={setNodeRef} {...attributes} style={{transform:transform?`translate3d(${transform.x}px,${transform.y}px,0)`:undefined}} onPointerDown={down} onPointerMove={end} onPointerUp={end} onPointerLeave={end} onPointerCancel={end} onContextMenu={e=>{e.preventDefault();onLongPress(task)}} className="task" title="Arrastra para asignar; mantén pulsado para varias fechas"><GripVertical size={16}/><span>{task.title}</span></div>};function AssignedTask({item,toggle,remove}){const timer=useRef();const held=useRef(false);const start=()=>{held.current=false;timer.current=setTimeout(()=>{held.current=true;if(window.confirm(`¿Borrar la asignación «${item.title}»?`))remove(item.id)},700)};const end=()=>clearTimeout(timer.current);const isVane=/^vane(sa)?$/i.test(item.person?.trim()||'');return <button title="Toca para completar; mantén pulsado para borrar" onPointerDown={start} onPointerUp={end} onPointerLeave={end} onPointerCancel={end} onClick={()=>{if(!held.current)toggle(item.id)}} className={'assigned '+(isVane?'assigned-vane ':'')+(item.completed?'completed':'')}>{item.title}<small> · {item.person}</small></button>};function Day({date,items,toggle,remove}){const {setNodeRef,isOver}=useDroppable({id:date});return <div ref={setNodeRef} className={'day '+(isOver?'over':'')}><b>{new Date(date+'T12:00').getDate()}</b>{items.map(x=><AssignedTask item={x} toggle={toggle} remove={remove} key={x.id}/>)}</div>}
