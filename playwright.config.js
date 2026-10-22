@@ -1,4 +1,4 @@
-import {defineConfig} from '@playwright/test';
+import {defineConfig, devices} from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
@@ -10,6 +10,7 @@ export default defineConfig({
   projects: [
     {name: 'desktop', use: {browserName: 'chromium', viewport: {width: 1280, height: 900}}},
     {name: 'mobile', use: {browserName: 'chromium', viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true}},
+    {name: 'iphone', testMatch: '**/refresh.spec.js', use: {...devices['iPhone 13'], browserName: 'webkit'}},
   ],
   webServer: {
     command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4174 --strictPort',

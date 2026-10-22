@@ -1,10 +1,46 @@
-const CACHE = 'oikos-v1';
+const CACHE = 'oikos-v2';
 const CORE = ['/', '/index.html', '/manifest.webmanifest'];
 const DEV_HOST = ['localhost', '127.0.0.1', '[::1]'].includes(self.location.hostname);
-self.addEventListener('install', event => event.waitUntil(DEV_HOST ? self.skipWaiting() : caches.open(CACHE).then(cache => cache.addAll(CORE))));
-self.addEventListener('activate', event => event.waitUntil(DEV_HOST ? caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('oikos-')).map(key => caches.delete(key)))).then(() => self.clients.claim()) : self.clients.claim()));
+self.addEventListener('install', event => event.waitUntil((async () => {
+  if (!DEV_HOST) {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(CORE.map(url => new Request(url, {cache: 'reload'})));
+  }
+  await self.skipWaiting();
+})()));
+self.addEventListener('activate', event => event.waitUntil((async () => {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter(key => key.startsWith('oikos-') && (DEV_HOST || key !== CACHE)).map(key => caches.delete(key)));
+  await self.clients.claim();
+})()));
 self.addEventListener('fetch', event => {
-  if (DEV_HOST) return;
-  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) return;
-  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => { const copy=response.clone(); caches.open(CACHE).then(cache=>cache.put(event.request,copy)); return response })))
+  const url = new URL(event.request.url);
+  if (DEV_HOST || event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (event.request.mode === 'navigate') {
+    // Check for current HTML; only use the saved shell when offline.
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const response = await fetch(event.request, {cache: 'no-store'});
+        if (response.ok) await cache.put('/index.html', response.clone()).catch(() => {});
+        return response;
+      } catch (error) {
+        const cached = await cache.match('/index.html');
+        if (cached) return cached;
+        throw error;
+      }
+    })());
+    return;
+  }
+  // Vite assets have content hashes; an updated build uses different URLs.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      const cached = await cache.match(event.request);
+      if (cached) return cached;
+      const response = await fetch(event.request);
+      if (response.ok) await cache.put(event.request, response.clone()).catch(() => {});
+      return response;
+    })());
+  }
 });

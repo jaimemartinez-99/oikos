@@ -23,3 +23,4 @@
 .meal-weekdays>span:nth-child(6),.meal-weekdays>span:nth-child(7){background:#e7edf7;color:#3d557a}
 .meal-days>.meal-day:nth-child(7n+6) time,.meal-days>.meal-day:nth-child(7n) time{color:#3d557a}
 .meal-day.meal-today{box-shadow:inset 0 0 0 2px #315d54}
+.header-actions{display:flex;align-items:center;gap:8px}.header-actions button{min-width:44px;min-height:44px;justify-content:center}.header-actions button:disabled{opacity:.55;cursor:wait}.header-actions button:focus-visible{outline:3px solid #c78f45;outline-offset:3px}.refreshing{animation:refresh-spin 1s linear infinite}@keyframes refresh-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.refreshing{animation:none}}
